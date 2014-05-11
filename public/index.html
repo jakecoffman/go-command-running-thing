@@ -34,7 +34,7 @@
 		
 		conn.onclose = function(e) {
 			$scope.$apply(function(){
-				alert("DISCONNECTED");
+				console.log("DISCONNECTED");
 			});
 		};
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -99,9 +100,13 @@ func main() {
 			case cmd := <-cmds:
 				output, err := cmd.CombinedOutput()
 				if err != nil {
-					panic(err)
+					log.Printf("There was a problem running a command: %v\n", err)
+					var s string
+					fmt.Sprintf(s, "%v", err)
+					results <- s
+				} else {
+					results <- string(output)
 				}
-				results <- string(output)
 			}
 		}
 	}()
