@@ -52,8 +52,8 @@
 		};
 
 		$scope.send = function(){
-			console.log($scope.cmd);
 			$http.post("/cmd", {cmd: $scope.cmd});
+			$scope.cmd = "";
 		}
 	});
 </script>

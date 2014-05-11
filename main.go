@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -101,9 +100,7 @@ func main() {
 				output, err := cmd.CombinedOutput()
 				if err != nil {
 					log.Printf("There was a problem running a command: %v\n", err)
-					var s string
-					fmt.Sprintf(s, "%v", err)
-					results <- s
+					results <- err.Error()
 				} else {
 					results <- string(output)
 				}
@@ -128,13 +125,19 @@ func main() {
 		}
 	})
 	m.Post("/cmd", binding.Json(CmdPayload{}), func(cmd CmdPayload, r render.Render) {
-		log.Println("Running command", cmd.Cmd)
+		if cmd.Cmd == "" {
+			r.Redirect("/")
+			return
+		}
 		parts := strings.Split(cmd.Cmd, " ")
+
+		log.Println("Running command", cmd.Cmd)
 		if len(parts) > 1 {
 			cmds <- *exec.Command(parts[0], parts[1:]...)
 		} else {
 			cmds <- *exec.Command(parts[0])
 		}
+
 		r.Redirect("/")
 	})
 	m.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
