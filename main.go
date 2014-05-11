@@ -2,14 +2,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/codegangsta/martini"
+	"github.com/gorilla/websocket"
 	"github.com/martini-contrib/binding"
 	"github.com/martini-contrib/render"
 
@@ -22,8 +21,8 @@ func init() {
 }
 
 func main() {
-	me := flag.String("me", "localhost:8080", "set the IP/port of this server")
-	them := flag.String("them", "", "set the IP/port of remote server")
+	// me := flag.String("me", "localhost:8080", "set the IP/port of this server")
+	// them := flag.String("them", "", "set the IP/port of remote server")
 	web := flag.String("web", "localhost:3000", "set the IP/port of the web server")
 	flag.Parse()
 
@@ -33,64 +32,64 @@ func main() {
 		os.Setenv("PORT", webs[1])
 	}
 
-	listener, err := net.Listen("tcp", *me)
-	if err != nil {
-		panic(err)
-	}
+	// listener, err := net.Listen("tcp", *me)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	// attempt to connect to them, say "hello"
-	if *them != "" {
-		conn, err := net.Dial("tcp", *them)
-		if err != nil {
-			panic(err)
-		}
-		_, err = conn.Write([]byte("HELLO"))
-		fmt.Println("I told them hello")
-		if err != nil {
-			panic(err)
-		}
-	}
+	// if *them != "" {
+	// 	conn, err := net.Dial("tcp", *them)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	_, err = conn.Write([]byte("HELLO"))
+	// 	fmt.Println("I told them hello")
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 
 	cmds := make(chan exec.Cmd)
 	results := make(chan string)
 
-	// handle incoming thems
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				panic(err)
-			}
-			go func() {
-				defer conn.Close()
-				// they must first send a HELLO
-				bytes := make([]byte, 1024)
-				n, err := conn.Read(bytes)
-				if err != nil {
-					log.Println(err)
-					return
-				}
-				msg := string(bytes[:n])
-				if msg != "HELLO" {
-					log.Println("They said", msg, "so I am ignoring them")
-					return
-				}
-				fmt.Println("Got a connection")
-				// so from now on we run what they say
-				for {
-					n, err := conn.Read(bytes)
-					if err != nil {
-						log.Println(err)
-						return
-					}
-					// parse into a cmd
-					cmdSlice := strings.Split(string(bytes[:n]), " ")
-					cmd := exec.Command(cmdSlice[0], cmdSlice[1:]...)
-					cmds <- *cmd
-				}
-			}()
-		}
-	}()
+	// // handle incoming thems
+	// go func() {
+	// 	for {
+	// 		conn, err := listener.Accept()
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 		go func() {
+	// 			defer conn.Close()
+	// 			// they must first send a HELLO
+	// 			bytes := make([]byte, 1024)
+	// 			n, err := conn.Read(bytes)
+	// 			if err != nil {
+	// 				log.Println(err)
+	// 				return
+	// 			}
+	// 			msg := string(bytes[:n])
+	// 			if msg != "HELLO" {
+	// 				log.Println("They said", msg, "so I am ignoring them")
+	// 				return
+	// 			}
+	// 			fmt.Println("Got a connection")
+	// 			// so from now on we run what they say
+	// 			for {
+	// 				n, err := conn.Read(bytes)
+	// 				if err != nil {
+	// 					log.Println(err)
+	// 					return
+	// 				}
+	// 				// parse into a cmd
+	// 				cmdSlice := strings.Split(string(bytes[:n]), " ")
+	// 				cmd := exec.Command(cmdSlice[0], cmdSlice[1:]...)
+	// 				cmds <- *cmd
+	// 			}
+	// 		}()
+	// 	}
+	// }()
 
 	// sends command to be executed from martini to client wrangler
 	go func() {
@@ -123,7 +122,8 @@ func main() {
 			r.HTML(200, "index", nil)
 		}
 	})
-	m.Post("/cmd", binding.Form(CmdPayload{}), func(cmd CmdPayload, r render.Render) {
+	m.Post("/cmd", binding.Json(CmdPayload{}), func(cmd CmdPayload, r render.Render) {
+		log.Println("Running command", cmd.Cmd)
 		parts := strings.Split(cmd.Cmd, " ")
 		if len(parts) > 1 {
 			cmds <- *exec.Command(parts[0], parts[1:]...)
@@ -132,9 +132,24 @@ func main() {
 		}
 		r.Redirect("/")
 	})
+	m.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+		if _, ok := err.(websocket.HandshakeError); ok {
+			http.Error(w, "Not a websocket handshake", 400)
+			return
+		} else if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Println("Succesfully upgraded connection")
+
+		for {
+			conn.WriteJSON(map[string]string{"output": <-results})
+		}
+	})
 	m.Run()
 }
 
 type CmdPayload struct {
-	Cmd string `form:"cmd"`
+	Cmd string `json:"cmd"`
 }

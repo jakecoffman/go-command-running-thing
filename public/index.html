@@ -1,0 +1,61 @@
+<!doctype html>
+<html ng-app="MyApp">
+<head>
+	<link href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+	<link href="http://netdna.bootstrapcdn.com/font-awesome/4.0.3/css/font-awesome.min.css" rel="stylesheet">
+</head>
+<body ng-controller="MainCtl">
+<div class="jumbotron">
+	<h1>Go Fabric</h1>
+</div>
+<div class="container">
+	<div class="row">
+		<form ng-submit="send()">
+			<input type="text" name="cmd" placeholder="Enter your command" ng-model="cmd">
+			<!-- <button class="btn btn-primary" ng-click="send()">Submit</button> -->
+		</form>
+	</div>
+	<div class="row">
+		<h2>Output</h2>
+		<div ng-repeat="o in output track by $index">
+			<pre>{{o}}</pre>
+		</div>
+	</div>
+</div>
+<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.2.12/angular.min.js"></script>
+<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.2.12/angular-resource.min.js"></script>
+<script>
+	var app = angular.module("MyApp", []);
+
+	app.controller("MainCtl", function($scope, $http){
+		$scope.output = [];
+
+		var conn = new WebSocket("ws://localhost:3000/ws");
+		
+		conn.onclose = function(e) {
+			$scope.$apply(function(){
+				alert("DISCONNECTED");
+			});
+		};
+
+		conn.onopen = function(e) {
+			$scope.$apply(function(){
+				console.log("CONNECTED");
+			})
+		};
+
+		conn.onmessage = function(e){
+			$scope.$apply(function(){
+				var msg = JSON.parse(e.data);
+				$scope.output.unshift(msg['output']);
+			});
+		};
+
+		$scope.send = function(){
+			console.log($scope.cmd);
+			$http.post("/cmd", {cmd: $scope.cmd});
+		}
+	});
+</script>
+</body>
+</html>
