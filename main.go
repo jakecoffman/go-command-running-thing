@@ -10,6 +10,11 @@ import (
 	"strings"
 
 	"github.com/codegangsta/martini"
+	"github.com/martini-contrib/binding"
+	"github.com/martini-contrib/render"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 func init() {
@@ -47,6 +52,7 @@ func main() {
 	}
 
 	cmds := make(chan exec.Cmd)
+	results := make(chan string)
 
 	// handle incoming thems
 	go func() {
@@ -88,23 +94,47 @@ func main() {
 
 	// sends command to be executed from martini to client wrangler
 	go func() {
-		select {
-		// run commands given
-		case cmd := <-cmds:
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				panic(err)
+		for {
+			select {
+			// run commands given
+			case cmd := <-cmds:
+				output, err := cmd.CombinedOutput()
+				if err != nil {
+					panic(err)
+				}
+				results <- string(output)
 			}
-			fmt.Println(string(output))
 		}
+	}()
 
+	// for debug
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
 	// some kind of interface for user to give commands
 	m := martini.Classic()
-	m.Get("/", func() string {
-		cmds <- *exec.Command("ls", "-larth")
-		return "Hello world!"
+	m.Use(render.Renderer())
+	m.Get("/", func(r render.Render) {
+		select {
+		case data := <-results:
+			r.HTML(200, "index", data)
+		default:
+			r.HTML(200, "index", nil)
+		}
+	})
+	m.Post("/cmd", binding.Form(CmdPayload{}), func(cmd CmdPayload, r render.Render) {
+		parts := strings.Split(cmd.Cmd, " ")
+		if len(parts) > 1 {
+			cmds <- *exec.Command(parts[0], parts[1:]...)
+		} else {
+			cmds <- *exec.Command(parts[0])
+		}
+		r.Redirect("/")
 	})
 	m.Run()
+}
+
+type CmdPayload struct {
+	Cmd string `form:"cmd"`
 }
