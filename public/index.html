@@ -18,7 +18,12 @@
 	<div class="row">
 		<h2>Output</h2>
 		<div ng-repeat="o in output track by $index">
-			<pre>{{o}}</pre>
+			<div ng-show="o.output">
+				<pre>{{o.output}}</pre>
+			</div>
+			<div ng-show="o.error" class="alert alert-danger">
+				{{o.error}}
+			</div>
 		</div>
 	</div>
 </div>
@@ -47,7 +52,7 @@
 		conn.onmessage = function(e){
 			$scope.$apply(function(){
 				var msg = JSON.parse(e.data);
-				$scope.output.unshift(msg['output']);
+				$scope.output.unshift(msg);
 			});
 		};
 
