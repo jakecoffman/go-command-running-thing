@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -71,18 +72,57 @@ func main() {
 			r.HTML(200, "index", nil)
 		}
 	})
-	m.Post("/cmd", binding.Json(CmdPayload{}), func(cmd CmdPayload, r render.Render) {
-		if cmd.Cmd == "" {
+	m.Post("/cmd", binding.Json(CmdPayload{}), func(cp CmdPayload, r render.Render) {
+		if cp.Cmd == "" {
 			r.Redirect("/")
 			return
 		}
-		parts := strings.Split(cmd.Cmd, " ")
+		if strings.Contains(cp.Cmd, "&&") || strings.Contains(cp.Cmd, "||") {
+			results <- Result{
+				Output: "",
+				Error:  "Ands n Ors ain't supported",
+			}
+			return
+		}
+		pipelines := strings.Split(cp.Cmd, "|")
+		l := len(pipelines)
+		log.Printf("Pipeline length: %v", l)
+		var lastCmdStdout io.ReadCloser
+		var err error
 
-		log.Println("Running command", cmd.Cmd)
-		if len(parts) > 1 {
-			cmds <- *exec.Command(parts[0], parts[1:]...)
-		} else {
-			cmds <- *exec.Command(parts[0])
+		log.Println("Running command", cp.Cmd)
+		for i, c := range pipelines {
+			parts := strings.Split(strings.TrimSpace(c), " ")
+
+			var cmd *exec.Cmd
+			if len(parts) > 1 {
+				cmd = exec.Command(parts[0], parts[1:]...)
+			} else {
+				cmd = exec.Command(parts[0])
+			}
+			if l > 1 { // pipeline!
+				if i == 0 { // first
+					lastCmdStdout, err = cmd.StdoutPipe()
+					if err != nil {
+						log.Println(err)
+						return
+					}
+					cmd.Start()
+				} else if i < l-1 { // middle
+					cmd.Stdin = lastCmdStdout
+					lastCmdStdout, err = cmd.StdoutPipe()
+					if err != nil {
+						log.Println(err)
+						return
+					}
+					cmd.Start()
+				} else { // last
+					cmd.Stdin = lastCmdStdout
+					cmds <- *cmd
+				}
+			} else {
+				cmds <- *cmd
+			}
 		}
 
 		r.Redirect("/")
@@ -96,10 +136,15 @@ func main() {
 			log.Println(err)
 			return
 		}
+		defer conn.Close()
 		log.Println("Succesfully upgraded connection")
 
 		for {
-			conn.WriteJSON(<-results)
+			err = conn.WriteJSON(<-results)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 		}
 	})
 	m.Run()

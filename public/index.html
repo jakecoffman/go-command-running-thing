@@ -8,11 +8,15 @@
 <div class="jumbotron">
 	<h1>Go Fabric</h1>
 </div>
-<div class="container">
+<div class="container" ng-show="connected">
 	<div class="row">
 		<form ng-submit="send()">
-			<input type="text" name="cmd" placeholder="Enter your command" ng-model="cmd">
-			<!-- <button class="btn btn-primary" ng-click="send()">Submit</button> -->
+			<div class="col-sm-10">
+				<input type="text" name="cmd" placeholder="Enter your command" ng-model="cmd" class="form-control">
+			</div>
+			<div class="col-sm-2">
+				<button class="btn btn-primary">Submit</button>
+			</div>
 		</form>
 	</div>
 	<div class="row">
@@ -27,25 +31,31 @@
 		</div>
 	</div>
 </div>
+<div class="container" ng-hide="connected">
+	<div class="row">
+		You are not connected.
+	</div>
+</div>
 <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.2.12/angular.min.js"></script>
 <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.2.12/angular-resource.min.js"></script>
 <script>
 	var app = angular.module("MyApp", []);
 
 	app.controller("MainCtl", function($scope, $http){
+		$scope.connected = false;
 		$scope.output = [];
 
 		var conn = new WebSocket("ws://localhost:3000/ws");
 		
 		conn.onclose = function(e) {
 			$scope.$apply(function(){
-				console.log("DISCONNECTED");
+				$scope.connected = false;
 			});
 		};
 
 		conn.onopen = function(e) {
 			$scope.$apply(function(){
-				console.log("CONNECTED");
+				$scope.connected = true;
 			})
 		};
 
