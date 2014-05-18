@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -17,8 +18,10 @@ import (
 	_ "net/http/pprof"
 )
 
-func init() {
+var i int
 
+func init() {
+	i = 0
 }
 
 func main() {
@@ -40,16 +43,22 @@ func main() {
 			select {
 			// run commands given
 			case cmd := <-cmds:
-				output, err := cmd.CombinedOutput()
-				if err != nil {
-					results <- Result{
-						Output: string(output),
-						Error:  err.Error(),
-					}
-				} else {
-					results <- Result{
-						Output: string(output),
-						Error:  "",
+				this := i
+				i++
+				r, _ := cmd.StdoutPipe()
+				cmd.Start()
+				buf := make([]byte, 1024)
+				for {
+					n, err := r.Read(buf)
+					if err != nil {
+						break
+					} else {
+						fmt.Println("Sending results")
+						results <- Result{
+							Output: string(buf[0:n]),
+							Error:  "",
+							Id:     this,
+						}
 					}
 				}
 			}
@@ -177,4 +186,5 @@ type CmdPayload struct {
 type Result struct {
 	Output string `json:"output"`
 	Error  string `json:"error"`
+	Id     int    `json:"id"`
 }

@@ -21,12 +21,12 @@
 	</div>
 	<div class="row">
 		<h2>Output</h2>
-		<div ng-repeat="o in output track by $index">
-			<div ng-show="o.output">
-				<pre>{{o.output}}</pre>
+		<div ng-repeat="(id, msg) in output | orderBy:id">
+			<div ng-show="msg.output">
+				<pre>{{msg.output}}</pre>
 			</div>
-			<div ng-show="o.error" class="alert alert-danger">
-				{{o.error}}
+			<div ng-show="msg.error" class="alert alert-danger">
+				{{msg.error}}
 			</div>
 		</div>
 	</div>
@@ -43,7 +43,7 @@
 
 	app.controller("MainCtl", function($scope, $http){
 		$scope.connected = false;
-		$scope.output = [];
+		$scope.output = {};
 
 		var conn = new WebSocket("ws://localhost:3000/ws");
 		
@@ -62,7 +62,13 @@
 		conn.onmessage = function(e){
 			$scope.$apply(function(){
 				var msg = JSON.parse(e.data);
-				$scope.output.unshift(msg);
+				console.log(msg);
+				if($scope.output.hasOwnProperty(msg.id)){
+					$scope.output[msg.id].output += msg.output;
+					$scope.output[msg.id].error += msg.error;
+				} else {
+					$scope.output[msg.id] = msg;
+				}
 			});
 		};
 
