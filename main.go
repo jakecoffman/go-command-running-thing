@@ -104,18 +104,38 @@ func main() {
 				if i == 0 { // first
 					lastCmdStdout, err = cmd.StdoutPipe()
 					if err != nil {
-						log.Println(err)
+						results <- Result{
+							Output: "",
+							Error:  err.Error(),
+						}
 						return
 					}
-					cmd.Start()
+					err = cmd.Start()
+					if err != nil {
+						results <- Result{
+							Output: "",
+							Error:  err.Error(),
+						}
+						return
+					}
 				} else if i < l-1 { // middle
 					cmd.Stdin = lastCmdStdout
 					lastCmdStdout, err = cmd.StdoutPipe()
 					if err != nil {
-						log.Println(err)
+						results <- Result{
+							Output: "",
+							Error:  err.Error(),
+						}
 						return
 					}
-					cmd.Start()
+					err = cmd.Start()
+					if err != nil {
+						results <- Result{
+							Output: "",
+							Error:  err.Error(),
+						}
+						return
+					}
 				} else { // last
 					cmd.Stdin = lastCmdStdout
 					cmds <- *cmd
